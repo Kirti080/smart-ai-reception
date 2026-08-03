@@ -1,0 +1,22 @@
+# Ignore Virtual Environments
+.venv/
+.venv311/
+venv/
+*.venv/
+kirti/.venv/
+kirti/.venv311/
+
+# Ignore Large Archive files & old backups
+*.zip
+*.tar.gz
+*.7z
+**/images/kirti/
+
+# Ignore Byte-compiled / Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+
+# Ignore Environment variables with real keys
+.env

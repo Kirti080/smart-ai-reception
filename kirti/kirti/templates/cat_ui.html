@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Desh Bhagat University — Smart AI Receptionist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    /* ─── RESET ─── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold:        #ffcc00;
+      --gold-light:  #fff0aa;
+      --gold-dim:    rgba(255, 204, 0, 0.45);
+      --gold-glow:   rgba(255, 204, 0, 0.25);
+      --navy-dark:   #020612;
+      --navy-card:   rgba(6, 14, 34, 0.78);
+      --glass-edge:  rgba(255, 204, 0, 0.22);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--navy-dark);
+      overflow: hidden;
+      font-family: 'Outfit', sans-serif;
+      user-select: none;
+    }
+
+    #kiosk-root {
+      position: relative;
+      width: 100vw; height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ─── BACKGROUND LAYERS ─── */
+    #bgVideo {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; z-index: 1; display: block;
+    }
+
+    #lobbyBg {
+      position: absolute; inset: 0; z-index: 2; display: none; opacity: 0;
+      background: url('/static/dbu_lobby_background.png') center top / cover no-repeat;
+      transition: opacity 1s ease;
+    }
+    #lobbyBg.shown { opacity: 1; }
+
+    #ambientOverlay {
+      position: absolute; inset: 0; z-index: 3; pointer-events: none;
+      background: linear-gradient(
+        to bottom,
+        rgba(2,6,18,0.70) 0%,
+        rgba(2,6,18,0.15) 25%,
+        rgba(2,6,18,0.15) 60%,
+        rgba(2,6,18,0.85) 85%,
+        rgba(2,6,18,0.98) 100%
+      );
+    }
+
+    #gridLayer {
+      position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; transition: opacity 1.2s;
+      background-image:
+        linear-gradient(rgba(255,204,0,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,204,0,0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+    }
+    #gridLayer.shown { opacity: 1; }
+
+    #particleCanvas { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+
+
+    /* ════════════════════════════════════════
+       IDLE SCREEN (SCREENSAVER)  z-10
+    ════════════════════════════════════════ */
+    #idle-screen {
+      position: absolute; inset: 0; z-index: 10;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 18px; transition: opacity 0.9s ease;
+    }
+
+    .idle-ring-wrap { position: relative; width: 170px; height: 170px; display: flex; align-items: center; justify-content: center; }
+    .p-ring { position: absolute; border-radius: 50%; border: 1.5px solid var(--gold-dim); animation: rp 3s ease-out infinite; }
+    .p-ring:nth-child(2){ animation-delay: 1s; } .p-ring:nth-child(3){ animation-delay: 2s; }
+    @keyframes rp { 0%{ width: 85px; height: 85px; opacity: 0.9; } 100%{ width: 190px; height: 190px; opacity: 0; } }
+
+    .idle-logo-box {
+      position: relative; z-index: 2; padding: 12px; border-radius: 20px;
+      background: linear-gradient(145deg, rgba(14, 26, 60, 0.9), rgba(4, 10, 28, 0.95));
+      border: 2px solid var(--gold-dim);
+      box-shadow: 0 0 45px rgba(255,204,0,0.35), inset 0 0 25px rgba(255,204,0,0.08);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .idle-logo-box img {
+      max-height: 80px; width: auto; object-fit: contain;
+      filter: drop-shadow(0 0 12px rgba(255,204,0,0.7));
+    }
+
+    .idle-univ {
+      font-family: 'Marcellus', serif;
+      font-size: clamp(1.8rem, 4.5vw, 3rem); text-align: center; line-height: 1.2; letter-spacing: 4px; text-transform: uppercase;
+      background: linear-gradient(135deg, #ffffff 15%, #ffea79 50%, var(--gold) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 24px rgba(255,204,0,0.45));
+    }
+    .idle-sub { font-size: clamp(0.65rem, 1.7vw, 0.85rem); letter-spacing: 6px; color: rgba(255,210,60,0.75); text-transform: uppercase; font-weight: 600; }
+    #idle-clock { font-size: clamp(3.2rem, 9vw, 5.2rem); font-weight: 800; color: #ffffff; letter-spacing: 6px; margin-top: 8px; text-shadow: 0 0 44px rgba(255,204,0,0.35); }
+    #idle-date  { font-size: clamp(0.75rem, 1.8vw, 0.95rem); letter-spacing: 3.5px; color: rgba(255,255,255,0.5); text-transform: uppercase; }
+
+    .idle-cta { margin-top: 36px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: ctaFloat 3.2s ease-in-out infinite alternate; }
+    @keyframes ctaFloat { 0%{ transform: translateY(0); opacity: 0.55; } 100%{ transform: translateY(-12px); opacity: 1; } }
+    .idle-cta-txt { font-size: clamp(0.7rem, 1.7vw, 0.85rem); letter-spacing: 5px; color: rgba(255,210,60,0.85); text-transform: uppercase; font-weight: 600; }
+    .idle-chevrons { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .idle-chevrons span { color: var(--gold); font-size: 1.1rem; line-height: 1; opacity: 0; animation: cfade 1.5s ease-in-out infinite; }
+    .idle-chevrons span:nth-child(1){ animation-delay: 0s; } .idle-chevrons span:nth-child(2){ animation-delay: 0.22s; } .idle-chevrons span:nth-child(3){ animation-delay: 0.44s; }
+    @keyframes cfade { 0%,100%{ opacity: 0.15; transform: translateY(0); } 50%{ opacity: 1; transform: translateY(5px); } }
+
+
+    /* ════════════════════════════════════════
+       ACTIVE KIOSK SCREEN  z-20
+    ════════════════════════════════════════ */
+    #cat-container {
+      position: absolute; inset: 0; z-index: 20;
+      display: none; flex-direction: column; align-items: center;
+      padding: clamp(14px,2.2vh,24px) clamp(18px,3.5vw,36px);
+    }
+
+    /* ─── 1. HEADER BAR: FULL UN-SQUISHED DBU LOGO ─── */
+    .kiosk-header {
+      width: 100%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--navy-card);
+      border: 1.5px solid var(--glass-edge);
+      border-radius: 24px;
+      padding: 14px 28px;
+      backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+      box-shadow: 0 10px 36px rgba(0,0,0,0.5), 0 0 25px rgba(255,204,0,0.12);
+    }
+
+    /* Clear, natural aspect-ratio logo container */
+    .brand-group { display: flex; align-items: center; gap: 18px; }
+    
+    .logo-frame {
+      display: flex; align-items: center; justify-content: center;
+      padding: 6px 12px; border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 204, 0, 0.3);
+      box-shadow: 0 0 16px rgba(255, 204, 0, 0.2);
+    }
+    
+    /* The Logo Image — displayed fully legible without squishing or circular crop */
+    .logo-frame img {
+      height: clamp(38px, 5vh, 52px);
+      width: auto;
+      object-fit: contain;
+      filter: drop-shadow(0 0 8px rgba(255,204,0,0.6));
+    }
+
+    .brand-titles { display: flex; flex-direction: column; justify-content: center; }
+    .uni-title {
+      font-family: 'Marcellus', serif;
+      font-size: clamp(1.05rem, 2.3vw, 1.45rem); font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase; line-height: 1.1;
+      background: linear-gradient(135deg, #ffffff 30%, var(--gold) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .uni-subtitle {
+      font-size: clamp(0.58rem, 1.3vw, 0.72rem);
+      color: rgba(255,210,60,0.85); letter-spacing: 4px; text-transform: uppercase; margin-top: 3px; font-weight: 600;
+    }
+
+    /* Clock Display */
+    .clock-group { text-align: right; }
+    #active-clock { font-size: clamp(1.2rem, 2.8vw, 1.55rem); font-weight: 800; color: #ffffff; letter-spacing: 2px; text-shadow: 0 0 12px rgba(255,204,0,0.35); }
+    #active-date  { font-size: clamp(0.55rem, 1.3vw, 0.68rem); color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 2px; margin-top: 2px; font-weight: 500; }
+
+    /* ─── 2. MAIN HERO: CONCIERGE STAGE / ASSISTANT STAGE ─── */
+    .hero-stage {
+      flex: 1; width: 100%; position: relative;
+      display: flex; justify-content: center; align-items: center;
+      overflow: hidden; margin: 16px 0;
+    }
+
+    /* Background Ambient Halo for Depth */
+    .stage-halo {
+      position: absolute;
+      width: clamp(300px, 55vw, 520px); height: clamp(300px, 55vw, 520px);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,204,0,0.18) 0%, transparent 70%);
+      pointer-events: none;
+      animation: stagePulse 6s ease-in-out infinite alternate;
+    }
+    @keyframes stagePulse { 0%{ transform: scale(0.85); opacity: 0.5; } 100%{ transform: scale(1.1); opacity: 0.95; } }
+
+    /* Premium Kiosk Display Frame — Integrates the assistant image gracefully */
+    .concierge-frame {
+      position: relative; z-index: 10;
+      height: 100%; max-height: clamp(340px, 62vh, 620px);
+      width: auto; max-width: clamp(280px, 50vw, 460px);
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 28px;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 247, 250, 0.95) 100%);
+      box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.7),
+        0 0 35px rgba(255, 204, 0, 0.25),
+        inset 0 0 0 2px rgba(255, 204, 0, 0.4);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .cat-img, #cat-talking-image {
+      height: 100%; width: auto; max-width: 100%;
+      object-fit: contain; object-position: center bottom;
+      transition: opacity 0.3s ease;
+    }
+    #cat-talking-image { display: none; }
+    #video-feed-stream { display: none; height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+
+    /* Photo Answer Overlay */
+    #photo-box {
+      position: absolute; top: 10px; z-index: 30;
+      display: none; justify-content: center;
+      animation: slideDown 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
+    }
+    @keyframes slideDown { from{ opacity: 0; transform: translateY(-20px); } to{ opacity: 1; transform: translateY(0); } }
+    #photo-box img { max-width: clamp(200px, 48vw, 300px); border-radius: 20px; border: 3.5px solid var(--gold); box-shadow: 0 24px 60px rgba(0,0,0,0.8); }
+
+    /* ─── 3. BOTTOM PANEL: SPEECH & LIVE STATUS ─── */
+    .interaction-panel {
+      width: 100%; flex-shrink: 0;
+      background: var(--navy-card);
+      border: 1.5px solid var(--glass-edge);
+      border-radius: 26px;
+      backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px);
+      box-shadow: 0 20px 55px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.1);
+      overflow: hidden; transition: border-color 0.5s, box-shadow 0.5s;
+    }
+    .interaction-panel.speaking {
+      border-color: rgba(255,204,0,0.6);
+      box-shadow: 0 20px 55px rgba(0,0,0,0.7), 0 0 45px rgba(255,204,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+
+    .p-status { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 14px 28px 0; }
+    .sdot { width: 9px; height: 9px; border-radius: 50%; transition: background 0.4s, box-shadow 0.4s; }
+    .sdot.ready    { background: #22c55e; box-shadow: 0 0 12px #22c55e; animation: spulse 1.8s ease-in-out infinite; }
+    .sdot.speaking { background: var(--gold); box-shadow: 0 0 16px var(--gold); animation: spulse 0.65s ease-in-out infinite; }
+    @keyframes spulse { 0%,100%{ transform: scale(0.8); opacity: 0.5; } 50%{ transform: scale(1.3); opacity: 1; } }
+    #status-label { font-size: clamp(0.65rem, 1.5vw, 0.78rem); letter-spacing: 4px; text-transform: uppercase; color: rgba(255,255,255,0.5); font-weight: 600; transition: color 0.4s; }
+
+    .p-sep { width: calc(100% - 56px); height: 1px; margin: 10px 28px 0; background: linear-gradient(to right, transparent, rgba(255,204,0,0.3), transparent); }
+
+    #text-box {
+      padding: 16px 32px;
+      font-size: clamp(1.05rem, 2.5vw, 1.3rem); font-weight: 400; line-height: 1.6;
+      color: #ffffff; text-align: center; white-space: pre-wrap;
+      min-height: 64px; display: flex; align-items: center; justify-content: center;
+    }
+
+    .soundwave { display: flex; align-items: center; justify-content: center; gap: 4px; height: 30px; padding: 0 28px 16px; opacity: 0; transition: opacity 0.4s; }
+    .soundwave.active { opacity: 1; }
+    .bar { width: 3.5px; border-radius: 4px; background: linear-gradient(to top, var(--gold), var(--gold-light)); animation: bb 0.6s ease-in-out infinite alternate; }
+    .bar:nth-child(1) {height:6px;animation-delay:0.00s;} .bar:nth-child(2) {height:13px;animation-delay:0.05s;} .bar:nth-child(3) {height:9px;animation-delay:0.10s;} .bar:nth-child(4) {height:20px;animation-delay:0.15s;} .bar:nth-child(5) {height:26px;animation-delay:0.20s;} .bar:nth-child(6) {height:18px;animation-delay:0.25s;} .bar:nth-child(7) {height:28px;animation-delay:0.30s;} .bar:nth-child(8) {height:22px;animation-delay:0.35s;} .bar:nth-child(9) {height:15px;animation-delay:0.40s;} .bar:nth-child(10){height:11px;animation-delay:0.45s;} .bar:nth-child(11){height:14px;animation-delay:0.50s;} .bar:nth-child(12){height:7px;animation-delay:0.55s;}
+    @keyframes bb { 0%{ transform: scaleY(0.15); opacity: 0.4; } 100%{ transform: scaleY(1); opacity: 1; } }
+
+    /* Admin Bypass Toggle Button */
+    #bypassToggle {
+      position: absolute; top: 18px; right: 18px; z-index: 50;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.3); padding: 6px 16px; border-radius: 50px;
+      font-family: 'Outfit', sans-serif; font-size: 0.68rem; letter-spacing: 1px;
+      cursor: pointer; backdrop-filter: blur(8px); transition: all 0.3s; opacity: 0.12;
+      display: flex; align-items: center; gap: 6px;
+    }
+    #bypassToggle:hover { opacity: 1; background: rgba(255,255,255,0.12); color: #ffffff; }
+  </style>
+</head>
+<body>
+
+<div id="kiosk-root">
+
+  <!-- ─── BACKGROUND LAYERS ─── -->
+  <video id="bgVideo" autoplay muted loop playsinline>
+    <source src="/static/dbu background.mp4" type="video/mp4"/>
+  </video>
+  <div id="lobbyBg"></div>
+  <div id="ambientOverlay"></div>
+  <div id="gridLayer"></div>
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- ════════════════════════════════════════
+       IDLE SCREENSAVER MODE  z-10
+  ════════════════════════════════════════ -->
+  <div id="idle-screen">
+    <div class="idle-ring-wrap">
+      <div class="p-ring"></div>
+      <div class="p-ring"></div>
+      <div class="p-ring"></div>
+      <div class="idle-logo-box">
+        <img src="/static/dbu logo.png.png" alt="DBU Logo"/>
+      </div>
+    </div>
+    <div class="idle-univ">Desh Bhagat<br/>University</div>
+    <div class="idle-sub">AI Reception Desk</div>
+    <div id="idle-clock">--:--:--</div>
+    <div id="idle-date">Loading...</div>
+    <div class="idle-cta">
+      <div class="idle-cta-txt">Approach to begin</div>
+      <div class="idle-chevrons">
+        <span>&#8964;</span><span>&#8964;</span><span>&#8964;</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ghost Admin Bypass Toggle -->
+  <button id="bypassToggle" onclick="toggleBypass()">
+    <span id="bypassDot" style="width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold);display:inline-block;"></span>
+    <span id="bypassTxt">Kiosk Mode</span>
+  </button>
+
+  <!-- ════════════════════════════════════════
+       ACTIVE KIOSK ASSISTANT INTERFACE  z-20
+  ════════════════════════════════════════ -->
+  <div id="cat-container">
+
+    <!-- 🌟 1. ELEGANT HEADER BAR (CRYSTAL CLEAR DBU LOGO) 🌟 -->
+    <div class="kiosk-header">
+      <div class="brand-group">
+        <!-- Natural Aspect Ratio Logo Box (No Squishing / Clipping) -->
+        <div class="logo-frame">
+          <img src="/static/dbu logo.png.png" alt="Desh Bhagat University"/>
+        </div>
+        <div class="brand-titles">
+          <div class="uni-title">Desh Bhagat University</div>
+          <div class="uni-subtitle">AI Reception Desk</div>
+        </div>
+      </div>
+      <div class="clock-group">
+        <div id="active-clock">--:--</div>
+        <div id="active-date">---</div>
+      </div>
+    </div>
+
+    <!-- 🌟 2. HERO CONCIERGE STAGE (HIGH-END PORTRAIT DISPLAY) 🌟 -->
+    <div class="hero-stage">
+      <div class="stage-halo"></div>
+
+      <!-- Photo Answer Overlay -->
+      <div id="photo-box">
+        <img id="answer-photo" src="" alt="Photo Answer"/>
+      </div>
+
+      <!-- Premium Concierge Frame (Identical Backdrop for Static & Speaking States) -->
+      <div class="concierge-frame">
+        <img id="cat-image"         class="cat-img" src="/static/receptionist.png"  alt="Assistant"/>
+        <img id="cat-talking-image"              src="/static/talking lady.gif"  alt="Speaking"/>
+        <img id="video-feed-stream"              src="/video_feed"                alt="Camera"/>
+      </div>
+    </div>
+
+    <!-- 🌟 3. BOTTOM INTERACTION PANEL (LIVE SPEECH & STATUS) 🌟 -->
+    <div class="interaction-panel" id="speech-card">
+      <div class="p-status">
+        <div class="sdot ready" id="statusDot"></div>
+        <div id="status-label">Ready &nbsp;·&nbsp; Listening for your voice</div>
+      </div>
+      <div class="p-sep"></div>
+      <div id="text-box">Say something...</div>
+      <div class="soundwave" id="soundwave">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      </div>
+    </div>
+
+  </div><!-- #cat-container -->
+
+</div><!-- #kiosk-root -->
+
+<script>
+  // ── STATE ──
+  let lastText = "Say something...";
+  let forceBypass = false;
+  let isUIVisible = false;
+
+  // ── DOM REFS ──
+  const catImage        = document.getElementById("cat-image");
+  const catTalkingImage = document.getElementById("cat-talking-image");
+  const videoFeedStream = document.getElementById("video-feed-stream");
+  const photoBox        = document.getElementById("photo-box");
+  const answerPhoto     = document.getElementById("answer-photo");
+  const catContainer    = document.getElementById("cat-container");
+  const bgVideo         = document.getElementById("bgVideo");
+  const idleScreen      = document.getElementById("idle-screen");
+  const lobbyBg         = document.getElementById("lobbyBg");
+  const gridLayer       = document.getElementById("gridLayer");
+  const speechCard      = document.getElementById("speech-card");
+  const soundwave       = document.getElementById("soundwave");
+  const statusDot       = document.getElementById("statusDot");
+  const statusLabel     = document.getElementById("status-label");
+  const textBox         = document.getElementById("text-box");
+
+  // URL bypass override
+  const up = new URLSearchParams(window.location.search);
+  if (['bypass','human','force'].some(k => up.get(k) === 'true')) { forceBypass = true; setTimeout(updateBypassUI, 80); }
+
+  // ── BYPASS ──
+  function toggleBypass() { forceBypass = !forceBypass; updateBypassUI(); }
+  function updateBypassUI() {
+    const dot = document.getElementById("bypassDot");
+    const txt = document.getElementById("bypassTxt");
+    const btn = document.getElementById("bypassToggle");
+    if (forceBypass) {
+      txt.innerText = "Bypass ON";
+      dot.style.cssText = "width:6px;height:6px;border-radius:50%;display:inline-block;background:#22c55e;box-shadow:0 0 8px #22c55e;";
+      btn.style.borderColor = "rgba(34,197,94,0.4)"; btn.style.background = "rgba(34,197,94,0.1)";
+    } else {
+      txt.innerText = "Kiosk Mode";
+      dot.style.cssText = "width:6px;height:6px;border-radius:50%;display:inline-block;background:var(--gold);box-shadow:0 0 6px var(--gold);";
+      btn.style.borderColor = "rgba(255,255,255,0.06)"; btn.style.background = "rgba(255,255,255,0.02)";
+    }
+  }
+
+  // ── AVATAR STATES ──
+  function startTalking() {
+    catImage.style.display        = "none";
+    catTalkingImage.style.display = "block";
+    videoFeedStream.style.display = "none";
+    speechCard.classList.add("speaking");
+    soundwave.classList.add("active");
+    statusDot.className     = "sdot speaking";
+    statusLabel.textContent = "Speaking\u2026";
+  }
+  function stopTalking() {
+    catTalkingImage.style.display = "none";
+    catImage.style.display        = "block";
+    videoFeedStream.style.display = "none";
+    speechCard.classList.remove("speaking");
+    soundwave.classList.remove("active");
+    statusDot.className     = "sdot ready";
+    statusLabel.textContent = "Ready \u00B7 Listening for your voice";
+  }
+
+  // ── TYPE TEXT ──
+  function typeText(text, speed = 42) {
+    textBox.innerText = ""; let i = 0;
+    const iv = setInterval(() => {
+      textBox.innerText += text.charAt(i++);
+      if (i >= text.length) { clearInterval(iv); stopTalking(); }
+    }, speed);
+  }
+  async function speakText(text, photo) {
+    startTalking(); typeText(text);
+    if (photo) {
+      answerPhoto.src = photo; photoBox.style.display = "flex";
+      setTimeout(() => { photoBox.style.display = "none"; }, 5000);
+    }
+  }
+
+  // ── SHOW / HIDE ACTIVE UI ──
+  function showActive() {
+    bgVideo.style.display    = "none";
+    idleScreen.style.opacity = "0"; idleScreen.style.pointerEvents = "none";
+    lobbyBg.style.display    = "block"; gridLayer.classList.add("shown");
+    setTimeout(() => lobbyBg.classList.add("shown"), 50);
+    catContainer.style.display = "flex";
+    catImage.style.display        = "block";
+    catTalkingImage.style.display = "none";
+    isUIVisible = true;
+  }
+  function showIdle() {
+    catContainer.style.display    = "none";
+    lobbyBg.classList.remove("shown"); gridLayer.classList.remove("shown");
+    setTimeout(() => { lobbyBg.style.display = "none"; bgVideo.style.display = "block"; bgVideo.play().catch(()=>{}); }, 900);
+    idleScreen.style.opacity = "1"; idleScreen.style.pointerEvents = "all";
+    isUIVisible = false;
+    lastText = "Say something..."; textBox.innerText = lastText;
+    photoBox.style.display = "none";
+    stopTalking();
+  }
+
+  // ── POLLS ──
+  setInterval(async () => {
+    try {
+      const d = await (await fetch("http://localhost:5005/get-latest")).json();
+      if (d.text && d.text !== lastText) { lastText = d.text; speakText(d.text, d.photo); }
+    } catch(e) {}
+  }, 2000);
+
+  setInterval(async () => {
+    try {
+      const d = await (await fetch(`http://localhost:5005/status?bypass=${forceBypass}`)).json();
+      if ((d.human || forceBypass) && !isUIVisible) showActive();
+      if (!d.human && !forceBypass && isUIVisible) showIdle();
+    } catch(e) {}
+  }, 1000);
+
+  // ── CLOCK ──
+  const DL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const DS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const ML=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const z = n => String(n).padStart(2,'0');
+  function tick() {
+    const n=new Date(), hh=z(n.getHours()), mm=z(n.getMinutes()), ss=z(n.getSeconds());
+    const dd=z(n.getDate()), d=n.getDay(), mo=n.getMonth();
+    const ic=document.getElementById('idle-clock'), id=document.getElementById('idle-date');
+    const ac=document.getElementById('active-clock'), ad=document.getElementById('active-date');
+    if(ic) ic.textContent=`${hh}:${mm}:${ss}`;
+    if(id) id.textContent=`${DL[d]}, ${dd} ${ML[mo]}`;
+    if(ac) ac.textContent=`${hh}:${mm}`;
+    if(ad) ad.textContent=`${DS[d]}, ${dd} ${MS[mo]}`;
+  }
+  setInterval(tick,1000); tick();
+
+  // ── PARTICLES ──
+  (function(){
+    const cv=document.getElementById('particleCanvas'), cx=cv.getContext('2d'), root=document.getElementById('kiosk-root');
+    const rs=()=>{cv.width=root.offsetWidth; cv.height=root.offsetHeight;};
+    rs(); window.addEventListener('resize',rs);
+    const P=Array.from({length:55},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,r:Math.random()*1.5+0.3,vx:(Math.random()-0.5)*0.25,vy:-(Math.random()*0.35+0.06),a:Math.random()*0.45+0.08,gold:Math.random()>0.5}));
+    (function draw(){
+      cx.clearRect(0,0,cv.width,cv.height);
+      P.forEach(p=>{cx.beginPath();cx.arc(p.x,p.y,p.r,0,Math.PI*2);cx.fillStyle=p.gold?`rgba(255,204,0,${p.a})`:`rgba(160,200,255,${p.a*0.4})`;cx.fill();p.x+=p.vx;p.y+=p.vy;if(p.y<-5){p.y=cv.height+5;p.x=Math.random()*cv.width;}if(p.x<-5)p.x=cv.width+5;if(p.x>cv.width+5)p.x=-5;});
+      requestAnimationFrame(draw);
+    })();
+  })();
+
+  // ── INIT ──
+  bgVideo.style.display = "block";
+  bgVideo.play().catch(()=>{});
+</script>
+
+</body>
+</html>

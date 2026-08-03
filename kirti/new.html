@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart AI Receptionist</title>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: white;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 🔰 LOGO STYLE */
+    .logo {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 2;
+    }
+
+    .logo img {
+      width: 120px;
+      height: auto;
+    }
+
+    video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+
+    .container {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1;
+      text-align: center;
+      display: none; /* hidden until human detected */
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+      color: #ffcc00;
+      text-shadow: 2px 2px #000;
+    }
+
+    .cat-img {
+      width: 280px;
+      height: 280px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+
+    #photo-box {
+      margin-top: 15px;
+      display: none;
+    }
+
+    #photo-box img {
+      max-width: 200px;
+      max-height: 200px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+
+    #text-box {
+      margin-top: 20px;
+      background: rgba(255, 255, 0);
+      color: black;
+      font-size: 22px;
+      padding: 15px 25px;
+      border-radius: 15px;
+      display: inline-block;
+      min-height: 60px;
+      white-space: pre-wrap;
+      text-align: left;
+      font-family: monospace;
+      box-shadow: 0 0 10px #fff3;
+      backdrop-filter: blur(6px);
+      transition: all 0.5s ease-in-out;
+    }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 1.8rem; }
+      #text-box { font-size: 16px; padding: 10px 15px; }
+      .logo img { width: 90px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- 🔰 LOGO -->
+  <div class="logo">
+    <img src="/static/logo.jpeg" alt="University Logo">
+  </div>
+
+  <!-- Background Video -->
+  <video id="bgVideo" autoplay muted loop>
+    <source src="/static/video.mp4" type="video/mp4" />
+  </video>
+
+  <!-- AI Assistant -->
+  <div class="container" id="cat-container">
+    <h1>Desh Bhagat University</h1>
+    <img id="cat-image" class="cat-img" src="/static/janvi.png" alt="Talking Cat" />
+    <div id="text-box">Say something...</div>
+
+    <div id="photo-box">
+      <img id="answer-photo" src="" alt="Answer Photo"/>
+    </div>
+  </div>
+
+  <script>
+    let lastText = "Say something...";
+    let noFaceCounter = 0;
+
+    const textBox = document.getElementById("text-box");
+    const catImage = document.getElementById("cat-image");
+    const photoBox = document.getElementById("photo-box");
+    const answerPhoto = document.getElementById("answer-photo");
+    const catContainer = document.getElementById("cat-container");
+    const bgVideo = document.getElementById("bgVideo");
+
+    function startTalking() {
+      catImage.src = "/static/janvi.gif";
+    }
+
+    function stopTalking() {
+      catImage.src = "/static/janvi.png";
+    }
+
+    function typeText(text, speed = 50) {
+      textBox.innerText = "";
+      let i = 0;
+      const interval = setInterval(() => {
+        textBox.innerText += text.charAt(i);
+        i++;
+        if (i >= text.length) {
+          clearInterval(interval);
+          stopTalking();
+        }
+      }, speed);
+    }
+
+    async function speakText(text, photo) {
+      startTalking();
+      typeText(text);
+      if (photo) {
+        answerPhoto.src = photo;
+        photoBox.style.display = "block";
+        setTimeout(() => photoBox.style.display = "none", 5000);
+      }
+    }
+
+    // Get assistant response
+    setInterval(async () => {
+      try {
+        const res = await fetch("http://localhost:5005/get-latest");
+        const data = await res.json();
+        if (data.text && data.text !== lastText) {
+          lastText = data.text;
+          speakText(data.text, data.photo);
+        }
+      } catch (err) {
+        console.error("❌ Error fetching latest text:", err);
+      }
+    }, 2000);
+
+    // Face detection status
+    setInterval(async () => {
+      try {
+        const res = await fetch("http://localhost:5005/status");
+        const data = await res.json();
+
+        if (data.human) {
+          noFaceCounter = 0;
+          bgVideo.style.display = "none";
+          catContainer.style.display = "block";
+        } else {
+          noFaceCounter++;
+          if (noFaceCounter >= 5) {
+            catContainer.style.display = "none";
+            bgVideo.style.display = "block";
+          }
+        }
+      } catch (err) {
+        console.error("❌ Error fetching status:", err);
+      }
+    }, 1000);
+  </script>
+
+</body>
+</html>

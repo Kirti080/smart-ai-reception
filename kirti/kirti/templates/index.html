@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Face Attendance System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f2f2f2;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .card {
+            background: #ffffff;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+
+        video, img {
+            width: 100%;
+            border-radius: 12px;
+            max-height: 300px;
+            object-fit: cover;
+        }
+
+        #status {
+            font-size: 18px;
+            margin-top: 20px;
+            line-height: 1.5;
+        }
+
+        .times {
+            margin-top: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #34495e;
+        }
+
+        button {
+            background: #007bff;
+            color: #fff;
+            border: none;
+            padding: 14px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .times {
+                font-size: 18px;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎓 College Face Attendance</h1>
+
+    <div class="card">
+        <video id="loopVideo" autoplay muted loop>
+            <source src="/static/dbu background.mp4" type="video/mp4" />
+        </video>
+        <img id="scan" src="" style="display:none;" />
+
+        <div id="status">📸 Waiting for face detection...</div>
+        <div class="times" id="time-info"></div>
+
+        <button onclick="startScan()">🎯 Start Face Scan (S)</button>
+    </div>
+    
+    <script>
+        let noFaceCounter = 0;
+        let scanning = false;
+
+        // Keyboard shortcut
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 's' || e.key === 'S') startScan();
+        });
+
+        function startScan() {
+            scanning = true;
+            const status = document.getElementById("status");
+            const timeInfo = document.getElementById("time-info");
+            const scan = document.getElementById("scan");
+            const video = document.getElementById("loopVideo");
+
+            status.innerText = "🔍 Scanning... Please look at the camera.";
+            scan.src = "/static/scanner.gif";
+            scan.style.display = "block";
+            video.style.display = "none";
+            timeInfo.innerText = "";
+
+            fetch("/start-match")
+                .then(res => res.json())
+                .then(data => {
+                    if (data.matched) {
+                        status.innerHTML = `✅ Welcome <strong>${data.name}</strong>`;
+
+                        scan.src = data.image_url;
+
+                        // Show Check-in and Check-out Time
+                        const checkin = data.checkin || "Pending...";
+                        const checkout = data.checkout || "Pending...";
+                        timeInfo.innerHTML = `
+                            🕒 <strong>Check-in:</strong> ${checkin}<br>
+                            🚪 <strong>Check-out:</strong> ${checkout}
+                        `;
+                    } else {
+                        status.innerText = "❌ Face not recognized. Please try again.";
+                        scan.style.display = "none";
+                        video.style.display = "block";
+                        timeInfo.innerText = "";
+                        scanning = false;
+                    }
+                });
+        }
+
+        function resetToDefault() {
+            scanning = false;
+            const scan = document.getElementById("scan");
+            const video = document.getElementById("loopVideo");
+            const status = document.getElementById("status");
+            const timeInfo = document.getElementById("time-info");
+
+            scan.style.display = "none";
+            video.style.display = "block";
+            status.innerText = "📸 Waiting for face detection...";
+            timeInfo.innerText = "";
+        }
+
+        // Poll backend every 1 sec
+        setInterval(() => {
+            fetch("/status")
+                .then(res => res.json())
+                .then(data => {
+                    console.log(data);
+                    
+                    if (data.human) {
+                        noFaceCounter = 0;
+                        if (!scanning) {
+                            startScan();
+                        }
+                    } else {
+                        noFaceCounter++;
+                        if (noFaceCounter >= 5) {  // 5 seconds no face
+                            resetToDefault();
+                        }
+                    }
+                });
+        }, 1000);
+    </script>
+
+</body>
+</html>
