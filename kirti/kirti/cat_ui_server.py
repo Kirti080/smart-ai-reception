@@ -5,9 +5,14 @@ from datetime import datetime
 import pandas as pd
 import mediapipe as mp
 try:
-    import mediapipe.solutions.face_mesh as mp_face_mesh
-except ModuleNotFoundError:
-    import mediapipe.python.solutions.face_mesh as mp_face_mesh
+    mp_face_mesh = getattr(mp, 'solutions', None) and getattr(mp.solutions, 'face_mesh', None)
+    if mp_face_mesh is None:
+        import mediapipe.solutions.face_mesh as mp_face_mesh
+except Exception:
+    try:
+        import mediapipe.python.solutions.face_mesh as mp_face_mesh
+    except Exception:
+        mp_face_mesh = None
 import threading
 import time
 # from human import shared_data
@@ -220,6 +225,10 @@ def detect_faces():
 
     print("🎥 Background face detection & streaming thread active.")
     
+    if mp_face_mesh is None:
+        print("⚠ [Camera Thread] MediaPipe face_mesh module not available.")
+        return
+
     with mp_face_mesh.FaceMesh(
         max_num_faces=1,
         refine_landmarks=True,
