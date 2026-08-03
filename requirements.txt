@@ -4,7 +4,7 @@ boto3
 opencv-python
 pandas
 openpyxl
-mediapipe==0.10.14
+mediapipe
 google-generativeai
 groq
 SpeechRecognition
