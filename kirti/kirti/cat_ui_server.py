@@ -263,21 +263,22 @@ def detect_faces():
 # Generator function for the live UI stream
 def gen_frames():
     global latest_frame
-    while True:
-        if latest_frame is not None:
-            # Resize slightly to maintain high performance in web UI
-            small_frame = cv2.resize(latest_frame, (640, 480))
-            ret, buffer = cv2.imencode('.jpg', small_frame)
-            if ret:
-                frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+    while latest_frame is not None:
+        # Resize slightly to maintain high performance in web UI
+        small_frame = cv2.resize(latest_frame, (640, 480))
+        ret, buffer = cv2.imencode('.jpg', small_frame)
+        if ret:
+            frame_bytes = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
         time.sleep(0.04)  # Corresponds to roughly ~25 FPS stream
 
 
 @app.route('/video_feed')
 def video_feed():
     """Route that feeds live video directly into your HTML page."""
+    if latest_frame is None:
+        return make_response("", 204)
     return make_response(gen_frames(), {
         'Content-Type': 'multipart/x-mixed-replace; boundary=frame'
     })
