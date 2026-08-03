@@ -8,7 +8,6 @@ mediapipe
 google-generativeai
 groq
 SpeechRecognition
-PyAudio
 pydub
 playsound==1.2.2
 pyttsx3
