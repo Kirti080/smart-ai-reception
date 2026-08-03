@@ -4,7 +4,10 @@ import boto3, os, cv2, io
 from datetime import datetime
 import pandas as pd
 import mediapipe as mp
-import mediapipe.python.solutions.face_mesh as mp_face_mesh
+try:
+    import mediapipe.solutions.face_mesh as mp_face_mesh
+except ModuleNotFoundError:
+    import mediapipe.python.solutions.face_mesh as mp_face_mesh
 import threading
 import time
 # from human import shared_data
